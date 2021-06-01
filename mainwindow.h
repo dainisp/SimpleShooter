@@ -6,6 +6,8 @@
 #include <QResizeEvent>
 #include <QMediaPlayer>
 #include <QRandomGenerator>
+#include <QJsonArray>
+#include <QCloseEvent>
 
 class GameScene;
 
@@ -44,10 +46,18 @@ private:
     int shootCount=0;
     double medianResoult;
     int bestResoult=200;
+    QString currentUser;
+
+    QJsonArray currentSettings;
+    void loadSettings(QByteArray jsonContent);
+    QByteArray getSettings();
+    void getSettingsForUser(QString user);
+    QStringList getUsersList();
 
 protected:
  void keyPressEvent(QKeyEvent *event);
  void resizeEvent(QResizeEvent *event);
+ void closeEvent(QCloseEvent *event);
 
 };
 #endif // MAINWINDOW_H

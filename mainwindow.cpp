@@ -1,5 +1,10 @@
 #include <iostream>
+#include <QDir>
+#include <QMessageBox>
+#include <QJsonObject>
+#include <QJsonDocument>
 #include "gamescene.h"
+#include "userschoose.h"
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 
@@ -8,6 +13,24 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
+
+  QString settingsPath = QDir::current().path() +QString("/simpleshoot.json");
+  QFile infile(settingsPath);
+  if(infile.open(QIODevice::ReadOnly))
+    {
+     QByteArray content = infile.readAll();
+     infile.close();
+    loadSettings(content);
+ }
+
+  UsersChoose usersChoose(getUsersList(),this);
+    usersChoose.setModal(true);
+    usersChoose.exec();
+QString user = usersChoose.getChoosedUser();
+currentUser = user;
+if(!user.isEmpty())
+    getSettingsForUser(user);
+
 setMouseTracking(true);
 
    //   ui->field->setViewportUpdateMode(QGraphicsView::NoViewportUpdate);
@@ -19,10 +42,12 @@ cursorPixmap = cursorPixmap.transformed(QTransform().scale(0.1,0.1));
     gameScene->update();
 timer = new QTimer();
 connect(timer,&QTimer::timeout,this,&MainWindow::ontimeout);
+
 timerCounter=0;
 pauseCount= 30 ;
 gameStatus = SIMPLE_SHOOT_PAUSE;
 timer->start(100);
+
 }
 
 MainWindow::~MainWindow()
@@ -72,6 +97,88 @@ shootCount++;
 }
 
 
+void MainWindow::getSettingsForUser(QString user)
+{
+    int userIndex=0;
+    while (userIndex<currentSettings.count()) {
+        QJsonObject userData = currentSettings[userIndex].toObject();
+        if(userData["user"].toString() ==  currentUser)
+            break;
+
+        userIndex++;
+    }
+  if(userIndex<currentSettings.count())
+  {
+        QJsonObject userData = currentSettings[userIndex].toObject();
+       bestResoult= userData["record"].toInt();
+        medianResoult =  userData["median"].toInt() ;
+       shootCount = 10;
+  }
+}
+
+  void MainWindow::loadSettings(QByteArray jsonContent)
+  {
+  QJsonDocument doc = QJsonDocument::fromJson(jsonContent);
+  if(!doc.isArray() || doc.array().count() ==0    )
+      return;
+currentSettings = doc.array();
+
+  }
+      QByteArray MainWindow::getSettings()
+      {
+          if(!currentUser.isEmpty())
+          {
+             int userIndex=0;
+             while (userIndex<currentSettings.count()) {
+                 QJsonObject userData = currentSettings[userIndex].toObject();
+                 if(userData["user"].toString() ==  currentUser)
+                     break;
+                 userIndex++;
+             }
+           if(userIndex<currentSettings.count())
+           {
+                 QJsonObject userData = currentSettings[userIndex].toObject();
+                userData["record"] = bestResoult;
+                userData["median"] = medianResoult;
+                currentSettings[userIndex]=userData;
+
+           }else
+             {
+                 QJsonObject userData;
+                 userData.insert("user",currentUser);
+                 userData.insert("record",bestResoult);
+                 userData.insert("median",medianResoult);
+              currentSettings.append(userData);
+           }
+
+          }
+
+          if(currentSettings.count()>0)
+          {
+           QJsonDocument doc(currentSettings);
+           return doc.toJson();
+          }
+          else return QByteArray();
+      }
+
+      QStringList MainWindow::getUsersList()
+      {
+            QStringList usersList;
+      if(currentSettings.count()>0)
+
+            {
+
+          foreach (QJsonValue userJsonValue, currentSettings) {
+              usersList.append(userJsonValue.toObject()["user"].toString());
+          }
+
+      }
+
+       return usersList;
+
+      }
+
+
 void MainWindow::keyPressEvent(QKeyEvent *event)
 {
 if(event->key() == Qt::Key_Escape )
@@ -109,8 +216,25 @@ if(event->key() == Qt::Key_F)
   }
    else
   {
-
+   playClip(1);
     gameScene->showItems();
   }
  }
  }
+
+  void MainWindow::closeEvent(QCloseEvent *event)
+  {
+       QByteArray content = getSettings();
+       if(!content.isEmpty())
+     {
+      QString settingsPath = QDir::current().path() +QString("/simpleshoot.json");
+      QFile outfile(settingsPath);
+      if(outfile.open(QIODevice::WriteOnly))
+        {
+        outfile.write(content);
+         outfile.close();
+
+     }
+       }
+       QMainWindow::closeEvent(event);
+  }
